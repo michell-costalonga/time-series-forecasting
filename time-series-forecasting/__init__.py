@@ -1,2 +1,2 @@
-from .forecast import NomeClasse
-from .utils import preprocess_data
+from .forecast import TimeSeriesForecasting
+from .utils import rename_columns
