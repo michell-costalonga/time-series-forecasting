@@ -8,8 +8,8 @@ setup(
         # Dependências necessárias para o pacote funcionar
         "numpy",
         "pandas",
-        "scikit-learn",
         "prophet",
+        "datetime",
     ],
     author="Michell Costalonga",
     author_email="michell.costalonga@picpay.com",
