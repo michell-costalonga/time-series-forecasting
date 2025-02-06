@@ -1,4 +1,4 @@
-from pyspark.sql.functions import col, count, max
+from pyspark.sql.functions import col, count, max, lit
 from pyspark.sql.window import Window
 
 
