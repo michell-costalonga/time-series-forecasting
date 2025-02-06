@@ -16,6 +16,7 @@ def rename_columns(df_pyspark_agg, target_column_name, date_column_name):
     df_preprocessed = df_pyspark_agg.withColumnRenamed(
         date_column_name, "ds"
     ).withColumnRenamed(target_column_name, "y")
+
     return df_preprocessed
 
 

@@ -2,6 +2,8 @@ from prophet import Prophet
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.functions import PandasUDFType
 from datetime import timedelta
+import pandas as pd
+import numpy as np
 
 
 class TimeSeriesForecasting:
