@@ -160,25 +160,27 @@ class TimeSeriesForecasting:
 
         if self.frequency == "hourly":
             new_date_hour = [
-                last_date_hour + timedelta(hours=i) for i in range(self.future_periods)
+                last_date_hour + timedelta(hours=i + 1)
+                for i in range(self.future_periods)
             ]
         elif self.frequency == "daily":
             new_date_hour = [
-                last_date_hour + timedelta(days=i) for i in range(self.future_periods)
+                last_date_hour + timedelta(days=i + 1)
+                for i in range(self.future_periods)
             ]
         elif self.frequency == "weekly":
             new_date_hour = [
-                last_date_hour + relativedelta(weeks=i)
+                last_date_hour + relativedelta(weeks=i + 1)
                 for i in range(self.future_periods)
             ]
         elif self.frequency == "monthly":
             new_date_hour = [
-                last_date_hour + relativedelta(months=i)
+                last_date_hour + relativedelta(months=i + 1)
                 for i in range(self.future_periods)
             ]
         elif self.frequency == "yearly":
             new_date_hour = [
-                last_date_hour + relativedelta(years=i)
+                last_date_hour + relativedelta(years=i + 1)
                 for i in range(self.future_periods)
             ]
         else:
@@ -191,6 +193,8 @@ class TimeSeriesForecasting:
         df_complete = df_complete.asfreq(
             self.dict_frequency[self.frequency], fill_value=0
         )
+
+        df_complete = df_complete.drop_duplicates(subset=["ds"])
 
         values = df_complete["y"].tolist()
 
