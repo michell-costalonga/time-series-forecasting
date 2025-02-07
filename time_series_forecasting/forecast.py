@@ -2,6 +2,7 @@ from prophet import Prophet
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.functions import PandasUDFType
 from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 import pandas as pd
 import numpy as np
 
@@ -12,7 +13,9 @@ class TimeSeriesForecasting:
         future_periods=15,
         holidays_prophet=None,
         seasonalities_prophet=None,
+        seasonality_mode_prophet="additive",
         columns_pyspark=None,
+        frequency="daily",
     ):
         """
         Inicializa o modelador Prophet com configurações flexíveis.
@@ -27,6 +30,16 @@ class TimeSeriesForecasting:
 
         # Sazonalidades personalizadas (se nenhuma for passada, usa valores padrão)
         self.seasonalities_prophet = seasonalities_prophet
+        self.seasonality_mode_prophet = seasonality_mode_prophet
+
+        self.frequency = frequency
+        self.dict_frequency = {
+            "hourly": "H",
+            "daily": "D",
+            "weekly": "W",
+            "monthly": "MS",
+            "yearly": "YS",
+        }
 
     def fit_prophet_pandas(self, df_partition):
         """
@@ -40,9 +53,12 @@ class TimeSeriesForecasting:
 
         # Inicializa o modelo Prophet com ou sem feriados
         if not self.holidays_prophet.empty:
-            model = Prophet(holidays=self.holidays_prophet)
+            model = Prophet(
+                seasonality_mode=self.seasonality_mode_prophet,
+                holidays=self.holidays_prophet,
+            )
         else:
-            model = Prophet()
+            model = Prophet(seasonality_mode=self.seasonality_mode_prophet)
 
         # Adiciona as sazonalidades configuradas
         if self.seasonalities_prophet:
@@ -55,8 +71,15 @@ class TimeSeriesForecasting:
 
         model.fit(df_partition)
 
-        future = model.make_future_dataframe(periods=self.future_periods)
+        future = model.make_future_dataframe(
+            periods=self.future_periods, freq=self.dict_frequency[self.frequency]
+        )
         forecast = model.predict(future)
+
+        if self.frequency == "hourly":
+            forecast["ds"] = forecast["ds"].astype("datetime64[ns]").dt.floor("H")
+        else:
+            forecast["ds"] = forecast["ds"].astype("datetime64[ns]").dt.floor("D")
 
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
@@ -121,9 +144,33 @@ class TimeSeriesForecasting:
 
         # Adicionando 14 novos registros com a quantidade preenchida como zero
         last_date_hour = df_partition.index.max()  # Obtém a última data e hora
-        new_date_hour = [
-            last_date_hour + timedelta(hours=i + 1) for i in range(self.future_periods)
-        ]
+        if self.frequency == "hourly":
+            new_date_hour = [
+                last_date_hour + timedelta(hours=i + 1)
+                for i in range(self.future_periods)
+            ]
+        elif self.frequency == "daily":
+            new_date_hour = [
+                last_date_hour + timedelta(days=i + 1)
+                for i in range(self.future_periods)
+            ]
+        elif self.frequency == "weekly":
+            new_date_hour = [
+                last_date_hour + relativedelta(weeks=i + 1)
+                for i in range(self.future_periods)
+            ]
+        elif self.frequency == "monthly":
+            new_date_hour = [
+                last_date_hour + relativedelta(months=i + 1)
+                for i in range(self.future_periods)
+            ]
+        elif self.frequency == "yearly":
+            new_date_hour = [
+                last_date_hour + relativedelta(years=i + 1)
+                for i in range(self.future_periods)
+            ]
+        else:
+            print("Frequência não válida.")
         new_load = pd.DataFrame({"ds": new_date_hour, "y": [0] * self.future_periods})
         new_load.set_index("ds", inplace=True)
 
