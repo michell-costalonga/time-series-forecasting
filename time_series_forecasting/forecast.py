@@ -81,6 +81,8 @@ class TimeSeriesForecasting:
         else:
             forecast["ds"] = forecast["ds"].astype("datetime64[ns]").dt.floor("D")
 
+        forecast = forecast.clip(lower=0, upper=None)
+
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
     def get_prophet_udf(self):
