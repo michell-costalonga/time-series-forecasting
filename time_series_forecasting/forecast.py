@@ -81,7 +81,8 @@ class TimeSeriesForecasting:
         else:
             forecast["ds"] = forecast["ds"].astype("datetime64[ns]").dt.floor("D")
 
-        forecast = forecast.clip(lower=0, upper=None)
+        cols_to_clip = ["yhat", "yhat_lower", "yhat_upper"]
+        forecast[cols_to_clip] = forecast[cols_to_clip].clip(lower=0, upper=None)
 
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
