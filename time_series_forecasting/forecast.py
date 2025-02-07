@@ -171,6 +171,7 @@ class TimeSeriesForecasting:
             ]
         else:
             print("Frequência não válida.")
+
         new_load = pd.DataFrame({"ds": new_date_hour, "y": [0] * self.future_periods})
         new_load.set_index("ds", inplace=True)
 

@@ -1,5 +1,6 @@
 from pyspark.sql.functions import col, count, max, lit
 from pyspark.sql.window import Window
+from pyspark.sql.types import StringType
 
 
 def rename_columns(df_pyspark_agg, target_column_name, date_column_name):
@@ -16,6 +17,13 @@ def rename_columns(df_pyspark_agg, target_column_name, date_column_name):
     df_preprocessed = df_pyspark_agg.withColumnRenamed(
         date_column_name, "ds"
     ).withColumnRenamed(target_column_name, "y")
+
+    columns_name = [col for col in df_preprocessed.columns if col not in ["ds", "y"]]
+
+    for column in columns_name:
+        df_preprocessed = df_preprocessed.withColumn(
+            column, col(column).cast(StringType())
+        )
 
     return df_preprocessed
 
