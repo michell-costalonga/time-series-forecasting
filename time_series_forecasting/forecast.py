@@ -190,11 +190,9 @@ class TimeSeriesForecasting:
 
         df_complete = pd.concat([df_partition, new_load], axis=0)
         df_complete["ds"] = pd.to_datetime(df_complete["ds"])
-        df_complete = df_complete.asfreq(
+        df_complete = df_complete.sex_index("ds").asfreq(
             self.dict_frequency[self.frequency], fill_value=0
         )
-
-        df_complete = df_complete.drop_duplicates(subset=["ds"])
 
         values = df_complete["y"].tolist()
 
