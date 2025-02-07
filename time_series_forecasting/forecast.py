@@ -141,9 +141,6 @@ class TimeSeriesForecasting:
 
         n_values = 30
 
-        df_partition = df_partition.set_index("ds").asfreq(
-            self.dict_frequency[self.frequency]
-        )
         mean_column_values = []
         std_column_values = []
 
@@ -186,7 +183,6 @@ class TimeSeriesForecasting:
             print("Frequência não válida.")
 
         new_load = pd.DataFrame({"ds": new_date_hour, "y": [0] * self.future_periods})
-        new_load.set_index("ds", inplace=True)
 
         df_complete = pd.concat([df_partition, new_load], axis=0)
         df_complete["ds"] = pd.to_datetime(df_complete["ds"])
