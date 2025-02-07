@@ -39,7 +39,7 @@ class TimeSeriesForecasting:
         df_partition = df_partition.sort_values(by="ds", ascending=True)
 
         # Inicializa o modelo Prophet com ou sem feriados
-        if self.holidays_prophet:
+        if not self.holidays_prophet.empty:
             model = Prophet(holidays=self.holidays_prophet)
         else:
             model = Prophet()
