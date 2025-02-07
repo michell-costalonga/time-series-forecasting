@@ -148,6 +148,7 @@ class TimeSeriesForecasting:
         df_complete = df_complete.clip(lower=0, upper=None)
 
         df_complete = df_complete.reset_index()
+        df_complete["ds"] = df_complete["ds"].astype("datetime64[ns]")
 
         return df_complete[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
