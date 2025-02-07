@@ -147,6 +147,8 @@ class TimeSeriesForecasting:
         df_complete = df_complete.drop(["std"], axis=1)
         df_complete = df_complete.clip(lower=0, upper=None)
 
+        df_complete = df_complete.reset_index()
+
         return df_complete[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
     def get_average_udf(self):
