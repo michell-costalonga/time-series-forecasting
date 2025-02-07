@@ -142,7 +142,7 @@ class TimeSeriesForecasting:
         df_complete["yhat"] = mean_column_values
         df_complete["std"] = std_column_values
         df_complete["yhat_lower"] = df_complete["yhat"] - 2 * df_complete["std"]
-        df_complete["yhat_upper"] = df_complete["yhat"] + 2 * df["std"]
+        df_complete["yhat_upper"] = df_complete["yhat"] + 2 * df_complete["std"]
 
         df_complete = df_complete.drop(["std"], axis=1)
         df_complete = df_complete.clip(lower=0, upper=None)
