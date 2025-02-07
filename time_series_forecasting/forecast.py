@@ -106,7 +106,7 @@ class TimeSeriesForecasting:
         def avg_last_n_numbers(values, index):
             # Obter os últimos N valores diferentes de zero antes do índice atual
             last_n = [v for v in values[:index] if v != 0 and not pd.isnull(v)]
-            return np.mean(last_n[-n_values:]) if last_n else np.nan
+            return round(np.mean(last_n[-n_values:]), 0) if last_n else np.nan
 
         def std_last_n_numbers(values, index):
             # Obter os últimos N valores diferentes de zero antes do índice atual
