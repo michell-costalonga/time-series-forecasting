@@ -1,7 +1,7 @@
 from prophet import Prophet
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.functions import PandasUDFType
-from datetime import timedelta
+from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 import numpy as np
@@ -141,35 +141,45 @@ class TimeSeriesForecasting:
 
         n_values = 30
 
-        df_partition = df_partition.set_index("ds")
+        df_partition = df_partition.set_index("ds").asfreq(
+            self.dict_frequency[self.frequency]
+        )
         mean_column_values = []
         std_column_values = []
 
         # Adicionando 14 novos registros com a quantidade preenchida como zero
-        last_date_hour = df_partition.index.max()  # Obtém a última data e hora
+        date_hour_df = df_partition.index.max()  # Obtém a última data e hora
+        current_day = datetime.strptime(
+            (datetime.today() - timedelta(hours=3)).strftime("%Y-%m-%d 00:00"),
+            "%Y-%m-%d 00:00",
+        )
+
+        if date_hour_df < current_day:
+            last_date_hour = current_day
+        else:
+            last_date_hour = date_hour_df
+
         if self.frequency == "hourly":
             new_date_hour = [
-                last_date_hour + timedelta(hours=i + 1)
-                for i in range(self.future_periods)
+                last_date_hour + timedelta(hours=i) for i in range(self.future_periods)
             ]
         elif self.frequency == "daily":
             new_date_hour = [
-                last_date_hour + timedelta(days=i + 1)
-                for i in range(self.future_periods)
+                last_date_hour + timedelta(days=i) for i in range(self.future_periods)
             ]
         elif self.frequency == "weekly":
             new_date_hour = [
-                last_date_hour + relativedelta(weeks=i + 1)
+                last_date_hour + relativedelta(weeks=i)
                 for i in range(self.future_periods)
             ]
         elif self.frequency == "monthly":
             new_date_hour = [
-                last_date_hour + relativedelta(months=i + 1)
+                last_date_hour + relativedelta(months=i)
                 for i in range(self.future_periods)
             ]
         elif self.frequency == "yearly":
             new_date_hour = [
-                last_date_hour + relativedelta(years=i + 1)
+                last_date_hour + relativedelta(years=i)
                 for i in range(self.future_periods)
             ]
         else:
@@ -179,6 +189,10 @@ class TimeSeriesForecasting:
         new_load.set_index("ds", inplace=True)
 
         df_complete = pd.concat([df_partition, new_load], axis=0)
+        df_complete["ds"] = pd.to_datetime(df_complete["ds"])
+        df_complete = df_complete.asfreq(
+            self.dict_frequency[self.frequency], fill_value=0
+        )
 
         values = df_complete["y"].tolist()
 
