@@ -145,7 +145,9 @@ class TimeSeriesForecasting:
         std_column_values = []
 
         # Adicionando 14 novos registros com a quantidade preenchida como zero
-        date_hour_df = df_partition.index.max()  # Obtém a última data e hora
+        date_hour_df = datetime.strptime(
+            str(df_partition["ds"].max())
+        )  # Obtém a última data e hora
         current_day = datetime.strptime(
             (datetime.today() - timedelta(hours=3)).strftime("%Y-%m-%d 00:00"),
             "%Y-%m-%d 00:00",
