@@ -11,7 +11,7 @@ class TimeSeriesForecasting:
     def __init__(
         self,
         future_periods=15,
-        holidays_prophet=None,
+        holidays_prophet=pd.DataFrame(),
         seasonalities_prophet=None,
         seasonality_mode_prophet="additive",
         columns_pyspark=None,
