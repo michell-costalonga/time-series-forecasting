@@ -1,5 +1,3 @@
-# Biblioteca time-series-forecasting
-
 # Documentação da Classe TimeSeriesForecasting
 
 ## Introdução
