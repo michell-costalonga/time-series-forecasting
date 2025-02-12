@@ -125,7 +125,7 @@ df_forecast = df.groupBy().apply(prophet_udf)
 display(df_forecast)
 ```
 
-## Exemplo de Uso no PySpark (Sem Coluna de Classificação)
+## Exemplo de Uso no PySpark (Cem Coluna de Classificação)
 
 ```python
 from pyspark.sql import SparkSession
