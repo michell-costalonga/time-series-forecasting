@@ -94,7 +94,7 @@ if missing:
     check_call([python, "-m", "pip", "install", *missing], stdout=DEVNULL)
 ```
 
-## Exemplo de Uso no PySpark (Sem Coluna de Classificação)
+## Exemplo de Uso no PySpark (Sem Coluna de Classificação) - Prophet
 
 ```python
 from pyspark.sql import SparkSession
@@ -123,10 +123,9 @@ df_forecast = df.groupBy().apply(prophet_udf)
 display(df_forecast)
 ```
 
-## Exemplo de Uso no PySpark (Cem Coluna de Classificação)
+## Exemplo de Uso no PySpark (Cem Coluna de Classificação) - Prophet
 
 ```python
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import col
 from time_series_forecasting import TimeSeriesForecasting
 import pandas as pd
@@ -137,7 +136,7 @@ columns = ["ds", "class", "y"]
 
 df = spark.createDataFrame(data, columns)
 
-columns_pyspark_class = df.columns
+columns_pyspark = df.columns
 
 modeler = TimeSeriesForecasting(
     future_periods=15, 
@@ -152,6 +151,33 @@ df_forecast = df.groupBy("class").apply(prophet_udf)
 display(df_forecast)
 ```
 
+## Exemplo de Uso no PySpark (Com Coluna de Classificação) - Média Móvel
+
+```python
+from pyspark.sql.functions import col
+from time_series_forecasting import TimeSeriesForecasting
+import pandas as pd
+
+# Criar DataFrame de exemplo com uma coluna de classificação
+data = [("2024-01-01", "A", 100), ("2024-01-02", "A", 120), ("2024-01-03", "A", 130)]
+columns = ["ds", "class", "y"]
+
+df = spark.createDataFrame(data, columns)
+
+columns_pyspark = df.columns
+
+modeler = TimeSeriesForecasting(
+    future_periods=15, 
+    columns_pyspark=columns_pyspark,
+)
+
+# Obter UDF para previsão
+avg_udf = modeler.get_average_udf()
+
+# Aplicar previsão usando PySpark
+df_forecast = df.groupBy("class").apply(avg_udf)
+display(df_forecast)
+```
 
 ## Considerações Finais
 Esta implementação permite previsões flexíveis utilizando Prophet ou Média Móvel, sendo eficiente para execução distribuída em PySpark.
