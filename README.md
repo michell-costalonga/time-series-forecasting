@@ -179,6 +179,127 @@ df_forecast = df.groupBy("class").apply(avg_udf)
 display(df_forecast)
 ```
 
+# Funções complementares
+
+## Exemplo de uso rename_columns
+A função auxilia na transformação do DataFrame para o formato esperado pela classe `TimeSeriesForecasting`.
+
+```python
+from pyspark.sql.functions import col
+from time_series_forecasting import rename_columns
+import pandas as pd
+
+# Criar DataFrame de exemplo com uma coluna de classificação
+data = [
+    ("2024-01-01", "A", 100), ("2024-01-02", "A", 120), ("2024-01-03", "A", 130),
+]
+
+columns = ["created_date", "class", "quantity"]
+df_raw = spark.createDataFrame(data, columns)
+
+# Usando a função para renomear as colunas
+renamed_df = rename_columns(
+    df_pyspark_agg=df_raw,
+    target_column_name='quantity',
+    date_column_name='created_date'
+)
+
+display(renamed_df)
+```
+
+## Exemplo de uso filter_dataframe
+A função `filter_dataframe` pode ser usada para separar o DataFrame principal em dois outros DataFrames de acordo com o volume de dados.
+A entrada da função é o DataFrame contendo todos os dados e saída da função retorna o `model_df`, que é o DataFrame indicado para o uso com o modelo de previsão da classe `TimeSeriesForecasting`, e o `avg_df` que é o DataFrame indicado para aplicar o cálculo com a média móvel.
+
+```python
+from pyspark.sql.functions import col
+from time_series_forecasting import filter_dataframe
+import pandas as pd
+
+# Criar DataFrame de exemplo com uma coluna de classificação
+data = [
+    ("2024-01-01", "A", 100), ("2024-01-02", "A", 120), ("2024-01-03", "A", 130),
+    ("2024-01-04", "A", 110), ("2024-01-05", "A", 115), ("2024-01-06", "A", 140),
+    ("2024-01-07", "A", 125), ("2024-01-08", "A", 135), ("2024-01-09", "A", 150),
+    ("2024-01-10", "A", 160),  
+
+    ("2024-01-01", "B", 90), ("2024-01-02", "B", 95), ("2024-01-03", "B", 100),
+    ("2024-01-04", "B", 110), ("2024-01-05", "B", 105), ("2024-01-06", "B", 115),
+    ("2024-01-07", "B", 120), ("2024-01-08", "B", 125),  ("2024-01-09", "B", 130),
+
+    ("2024-01-01", "C", 80), ("2024-01-02", "C", 85), ("2024-01-03", "C", 90),
+]
+
+columns = ["ds", "class", "y"]
+df = spark.createDataFrame(data, columns)
+
+# Usando a função para renomear as colunas
+model_df, avg_df = filter_dataframe(df)
+
+print('DataFrame que pode ser usado com o modelo de forecast:')
+model_df.show()
+
+print('DataFrame que pode ser usado com o cálculo da média móvel:')
+avg_df.show()
+```
+
+## Exemplo Completo
+```python
+from pyspark.sql.functions import col
+from time_series_forecasting import TimeSeriesForecasting, rename_columns, filter_dataframe
+import pandas as pd
+
+# Criar DataFrame de exemplo com uma coluna de classificação
+data = [
+    ("2024-01-01", "A", 100), ("2024-01-02", "A", 120), ("2024-01-03", "A", 130),
+    ("2024-01-04", "A", 110), ("2024-01-05", "A", 115), ("2024-01-06", "A", 140),
+    ("2024-01-07", "A", 125), ("2024-01-08", "A", 135), ("2024-01-09", "A", 150),
+    ("2024-01-10", "A", 160),  
+
+    ("2024-01-01", "B", 90), ("2024-01-02", "B", 95), ("2024-01-03", "B", 100),
+    ("2024-01-04", "B", 110), ("2024-01-05", "B", 105), ("2024-01-06", "B", 115),
+    ("2024-01-07", "B", 120), ("2024-01-08", "B", 125),  ("2024-01-09", "B", 130),
+
+    ("2024-01-01", "C", 80), ("2024-01-02", "C", 85), ("2024-01-03", "C", 90),
+]
+
+columns = ["created_date", "class", "quantity"]
+df_raw = spark.createDataFrame(data, columns)
+
+# Usando a função para renomear as colunas
+renamed_df = rename_columns(
+    df_pyspark_agg=df_raw,
+    target_column_name='quantity',
+    date_column_name='created_date'
+)
+
+# Coletando o nome das colunas do DataFrame principal
+columns_pyspark = renamed_df.columns
+
+# Usando a função para renomear as colunas
+model_df, avg_df = filter_dataframe(renamed_df)
+
+# Iniciando classe
+modeler = TimeSeriesForecasting(
+    future_periods=15, 
+    columns_pyspark=columns_pyspark,
+)
+
+# Obter UDF para previsão - Prophet
+model_udf = modeler.get_prophet_udf()
+
+# Obter UDF para previsão - Média Móvel
+avg_udf = modeler.get_average_udf()
+
+# Aplicar previsão usando PySpark
+df_forecast_model = model_df.groupBy("class").apply(model_udf)
+df_forecast_avg = avg_df.groupBy("class").apply(avg_udf)
+
+df_forecast = df_forecast_model.union(df_forecast_avg)
+display(df_forecast)
+
+```
+
 ## Considerações Finais
 Esta implementação permite previsões flexíveis utilizando Prophet ou Média Móvel, sendo eficiente para execução distribuída em PySpark.
 O código é otimizado para grandes volumes de dados, garantindo escalabilidade.
