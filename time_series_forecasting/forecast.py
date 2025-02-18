@@ -145,9 +145,25 @@ class TimeSeriesForecasting:
         std_column_values = []
 
         # Adicionando 14 novos registros com a quantidade preenchida como zero
-        date_hour_df = datetime.strptime(
-            str(df_partition["ds"].max()), "%Y-%m-%d"
-        )  # Obtém a última data e hora
+        # Obtém a última data e hora
+        if self.frequency == "hourly":
+            try:
+                date_hour_df = datetime.strptime(
+                    str(df_partition["ds"].max()), "%Y-%m-%d %H:%M:%S"
+                )
+            except:
+                date_hour_df = datetime.strptime(
+                    str(df_partition["ds"].max()), "%Y-%m-%d %H:%M"
+                )
+        else:
+            try:
+                date_hour_df = datetime.strptime(
+                    str(df_partition["ds"].max()), "%Y-%m-%d %H:%M:%S"
+                )
+            except:
+                date_hour_df = datetime.strptime(
+                    str(df_partition["ds"].max()), "%Y-%m-%d"
+                )
         current_day = datetime.strptime(
             (datetime.today() - timedelta(hours=3)).strftime("%Y-%m-%d 00:00"),
             "%Y-%m-%d 00:00",
