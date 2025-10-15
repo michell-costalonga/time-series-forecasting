@@ -3,3 +3,5 @@ numpy
 prophet
 pyspark
 datetime
+scikit-learn
+python-dateutil

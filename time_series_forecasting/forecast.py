@@ -5,6 +5,9 @@ from datetime import timedelta, datetime
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV, TimeSeriesSplit
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import make_scorer, fbeta_score
 
 
 class TimeSeriesForecasting:
@@ -16,6 +19,10 @@ class TimeSeriesForecasting:
         seasonality_mode_prophet="additive",
         columns_pyspark=None,
         frequency="daily",
+        identifying_peaks=False,
+        quantile_value=0.975,
+        lookback_value=5,
+        fill_value_metric="median"
     ):
         """
         Inicializa o modelador Prophet com configurações flexíveis.
@@ -23,6 +30,11 @@ class TimeSeriesForecasting:
         :param holidays_prophet: Pandas DataFrame de feriados para o Prophet.
         :param future_periods: Número de períodos futuros para previsão.
         :param seasonalities_prophet: Lista de dicionários para sazonalidades personalizadas para o Prophet.
+        :param seasonalities_mode_prophet: String definindo o modo de sazonalidade: 'additive' ou 'multiplicative'.
+        :param columns_pyspark: Lista de strings contendo o nome das colunas.
+        :param frequency: String indicando a frequência da série temporal: 'monthly', 'daily', 'hourly'.
+        :param quantile_value: Float que indica o valor limite do quantil para identificar o pico.
+        :param fill_value_metric: Métrica que será usada para preencher os valores de picos faltantes. Pode ser 'mean' ou 'median'.
         """
         self.future_periods = future_periods
         self.holidays_prophet = holidays_prophet
@@ -41,6 +53,11 @@ class TimeSeriesForecasting:
             "yearly": "YS",
         }
 
+        self.identifying_peaks = identifying_peaks
+        self.lookback_value = lookback_value
+        self.quantile_value = quantile_value
+        self.fill_value_metric = fill_value_metric
+
     def fit_prophet_pandas(self, df_partition):
         """
         Ajusta o modelo Prophet a um DataFrame Pandas.
@@ -48,8 +65,20 @@ class TimeSeriesForecasting:
         :param df_partition: DataFrame Pandas com as colunas 'ds' e 'y'.
         :return: DataFrame com previsões.
         """
-        df_partition = df_partition.fillna(0)
-        df_partition = df_partition.sort_values(by="ds", ascending=True)
+        df = df_partition.fillna(0)
+        df = df.drop_duplicates(subset="ds", keep="last")
+        df = df.sort_values(by="ds", ascending=True)
+
+        series = pd.Series(df["y"].values, index=pd.DatetimeIndex(df["ds"])).asfreq(self.dict_frequency[self.frequency])
+        series = series.interpolate()
+
+        threshold = series.quantile(self.quantile_value)
+        is_spike = (series > threshold).astype(int)
+
+        df_partition = pd.DataFrame({
+            "ds": series.index,
+            "y": series.values
+        })
 
         # Inicializa o modelo Prophet com ou sem feriados
         if not self.holidays_prophet.empty:
@@ -83,6 +112,107 @@ class TimeSeriesForecasting:
 
         cols_to_clip = ["yhat", "yhat_lower", "yhat_upper"]
         forecast[cols_to_clip] = forecast[cols_to_clip].clip(lower=0, upper=None)
+
+        forecast_baseline = forecast.set_index("ds")["yhat_upper"].values #.iloc[-self.future_periods:]
+        future_index = forecast["ds"]
+
+        if self.identifying_peaks == True:
+
+            # Principais feriados do Brasil
+            actual_year = (datetime.now() - timedelta(hours=3)).year
+            next_year = actual_year + 1
+            year_before = actual_year - 1
+            holidays_br = holidays.Brazil(years=[year_before, actual_year, next_year])
+
+            # Classificador de picos
+            df_features = pd.DataFrame({
+                "y": series,
+                "is_spike": is_spike,
+                "hour": series.index.hour,
+                "day": series.index.day,
+                "dayofweek": series.index.dayofweek,
+                "is_holiday": pd.Series(series.index.date).isin(holidays_br).values
+            }).dropna()
+
+            X = df_features[[column for column in df_features.columns if column not in ["y","is_spike"]]]
+            y_spike = df_features["is_spike"]
+
+            # Modelo para identificar picos
+
+            param_grid = {
+                "n_estimators": [100, 300, 500],
+                "max_depth": [5, 10, 20, None],
+                "min_samples_split": [2, 5, 10],
+                "min_samples_leaf": [1, 2, 4],
+                "max_features": ["sqrt", "log2"]
+            }
+
+            X_train, X_test, y_train, y_test = train_test_split(X, y_spike, test_size=0.2, shuffle=False)
+
+            tscv = TimeSeriesSplit(n_splits=5)
+            fbeta_scorer = make_scorer(fbeta_score, beta=1.5)
+
+            rf = RandomForestClassifier(class_weight="balanced", random_state=42, n_jobs=-1)
+
+            grid_search = GridSearchCV(
+                estimator=rf,
+                param_grid=param_grid,
+                cv=tscv,
+                scoring=fbeta_scorer,
+                verbose=-1,
+                n_jobs=-1
+            )
+
+            grid_search.fit(X, y_spike)
+
+            clf = grid_search.best_estimator_
+
+            # Previsão dos picos
+            y_pred = clf.predict(X_test)
+
+            # Combinar previsões
+            def get_avg_spike_size(ts_index, series, is_spike, lookback=2):
+                """
+                Calcula a média dos tamanhos de pico para a mesma hora e mesmo dia da semana,
+                olhando ocorrências anteriores (o período é definido pela variável 'lookback').
+                """
+                dow = ts_index.dayofweek
+                hour = ts_index.hour
+
+                mask = (series.index.dayofweek == dow) & (series.index.hour == hour) & (is_spike == 1)
+                history = series[mask]
+
+                if len(history) >= lookback:
+                    return history.iloc[-lookback:].mean()
+                elif len(history) > 0:
+                    return history.mean()
+                else:
+                    # fallback para média global de picos
+                    if self.fill_value_metric == "median":
+                        return series[is_spike == 1].median()
+                    else:
+                        return series[is_spike == 1].mean()
+
+            future_df = pd.DataFrame({ 
+                "hour": future_index.dt.hour, 
+                "day": future_index.dt.day, 
+                "dayofweek": future_index.dt.dayofweek, 
+                "is_holiday": future_index.dt.date.isin(holidays_br)
+            })
+
+            spike_pred_future = clf.predict(future_df)
+
+            # Calcular forecast final ponto a ponto
+            forecast_final = []
+            for ds, base, spike_flag in zip(future_index, forecast_baseline, spike_pred_future):
+                if spike_flag == 1:
+                    spike_size = get_avg_spike_size(ds, series, is_spike, lookback=self.lookback_value)
+                    forecast_final.append(spike_size*1.1)
+                else:
+                    forecast_final.append(base)
+
+            forecast_final = np.array(forecast_final)
+            forecast["yhat_upper"] = forecast_final
 
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
@@ -144,7 +274,7 @@ class TimeSeriesForecasting:
         mean_column_values = []
         std_column_values = []
 
-        # Adicionando 14 novos registros com a quantidade preenchida como zero
+        # Adicionando novos registros com a quantidade preenchida como zero
         # Obtém a última data e hora
         if self.frequency == "hourly":
             try:
@@ -165,7 +295,7 @@ class TimeSeriesForecasting:
                     str(df_partition["ds"].max()), "%Y-%m-%d"
                 )
         current_day = datetime.strptime(
-            (datetime.today() - timedelta(hours=3)).strftime("%Y-%m-%d 00:00"),
+            (datetime.now() - timedelta(hours=3)).strftime("%Y-%m-%d 00:00"),
             "%Y-%m-%d 00:00",
         )
 
@@ -274,3 +404,4 @@ class TimeSeriesForecasting:
             return forecast
 
         return fill_moving_average_udf
+    
