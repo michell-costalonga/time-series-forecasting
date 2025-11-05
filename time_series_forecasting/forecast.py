@@ -160,7 +160,7 @@ class TimeSeriesForecasting:
                 param_grid=param_grid,
                 cv=tscv,
                 scoring=fbeta_scorer,
-                verbose=-1,
+                verbose=0,
                 n_jobs=-1
             )
 
