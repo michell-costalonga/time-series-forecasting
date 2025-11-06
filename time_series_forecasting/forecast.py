@@ -23,7 +23,9 @@ class TimeSeriesForecasting:
         identifying_peaks=False,
         quantile_value=0.975,
         lookback_value=5,
-        fill_value_metric="median"
+        fill_value_metric="median",
+        use_correction_based_on_history=False,
+        correction_window_days=90
     ):
         """
         Inicializa o modelador Prophet com configurações flexíveis.
@@ -58,6 +60,9 @@ class TimeSeriesForecasting:
         self.lookback_value = lookback_value
         self.quantile_value = quantile_value
         self.fill_value_metric = fill_value_metric
+
+        self.use_correction_based_on_history = use_correction_based_on_history
+        self.correction_window_days = correction_window_days
 
     def fit_prophet_pandas(self, df_partition):
         """
@@ -215,6 +220,33 @@ class TimeSeriesForecasting:
             forecast_final = np.array(forecast_final)
             forecast["yhat_upper"] = forecast_final
 
+        if self.use_correction_based_on_history == True:
+
+            forecast_correction = forecast[["ds", "yhat_upper"]].copy()
+            forecast_correction = forecast_correction.merge(df_partition[["ds", "y"]], on="ds", how="left")
+            forecast_correction = forecast_correction[forecast_correction["y"].notna()]
+
+            # Determinar a data máxima no forecast_correction
+            max_date = forecast_correction["ds"].max()
+            limit_date = max_date - timedelta(days=self.correction_window_days)
+            forecast_correction = forecast_correction[forecast_correction["ds"] >= limit_date]
+
+            # Calculando a diferença relativa
+            forecast_correction["relative_difference"] = (forecast_correction["y"]-forecast_correction["yhat_upper"])/forecast_correction["yhat_upper"]
+
+            # Definindo a coluna com a informação dia_hora
+            forecast_correction["day_hour"] = forecast_correction["ds"].dt.day.astype(str) + "_" + forecast_correction["ds"].dt.hour.astype(str)
+
+            # Calculando a diferença média para cada dia-hora
+            forecast_correction_agg = forecast_correction.groupby("day_hour")["relative_difference"].mean().reset_index()
+            conditions_for_correction = (forecast_correction_agg["relative_difference"]>0) | (forecast_correction_agg["relative_difference"]<-0.25)
+            day_hours_to_correct = forecast_correction_agg.loc[conditions_for_correction, "day_hour"].tolist()
+
+            # Corrigindo os valores no DataFrame de previsão
+            forecast["day_hour"] = forecast["ds"].dt.day.astype(str) + "_" + forecast["ds"].dt.hour.astype(str)
+            forecast = forecast.merge(forecast_correction_agg[["day_hour", "relative_difference"]],on="day_hour",how="left")
+            forecast["yhat_upper"] = np.where(forecast["day_hour"].isin(day_hours_to_correct),forecast["yhat_upper"] * (1 + forecast["relative_difference"]),forecast["yhat_upper"])
+
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
     def get_prophet_udf(self):
@@ -361,6 +393,32 @@ class TimeSeriesForecasting:
 
         df_complete = df_complete.reset_index()
         df_complete["ds"] = df_complete["ds"].astype("datetime64[ns]")
+
+        if self.use_correction_based_on_history == True:
+
+            forecast_correction = df_complete[["ds", "y", "yhat_upper"]].copy()
+            forecast_correction = forecast_correction[forecast_correction["y"].notna()]
+
+            # Determinar a data máxima no forecast_correction
+            max_date = forecast_correction["ds"].max()
+            limit_date = max_date - timedelta(days=self.correction_window_days)
+            forecast_correction = forecast_correction[forecast_correction["ds"] >= limit_date]
+
+            # Calculando a diferença relativa
+            forecast_correction["relative_difference"] = (forecast_correction["y"]-forecast_correction["yhat_upper"])/forecast_correction["yhat_upper"]
+
+            # Definindo a coluna com a informação dia_hora
+            forecast_correction["day_hour"] = forecast_correction["ds"].dt.day.astype(str) + "_" + forecast_correction["ds"].dt.hour.astype(str)
+
+            # Calculando a diferença média para cada dia-hora
+            forecast_correction_agg = forecast_correction.groupby("day_hour")["relative_difference"].mean().reset_index()
+            conditions_for_correction = (forecast_correction_agg["relative_difference"]>0)
+            day_hours_to_correct = forecast_correction_agg.loc[conditions_for_correction, "day_hour"].tolist()
+
+            # Corrigindo os valores no DataFrame de previsão
+            df_complete["day_hour"] = df_complete["ds"].dt.day.astype(str) + "_" + df_complete["ds"].dt.hour.astype(str)
+            df_complete = df_complete.merge(forecast_correction_agg[["day_hour", "relative_difference"]],on="day_hour",how="left")
+            df_complete["yhat_upper"] = np.where(df_complete["day_hour"].isin(day_hours_to_correct),df_complete["yhat_upper"] * (1 + df_complete["relative_difference"]),df_complete["yhat_upper"])
 
         return df_complete[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
