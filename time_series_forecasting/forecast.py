@@ -36,8 +36,12 @@ class TimeSeriesForecasting:
         :param seasonalities_mode_prophet: String definindo o modo de sazonalidade: 'additive' ou 'multiplicative'.
         :param columns_pyspark: Lista de strings contendo o nome das colunas.
         :param frequency: String indicando a frequência da série temporal: 'monthly', 'daily', 'hourly'.
+        :param identifying_peaks: Booleano que indica se o modelo deve identificar picos na série temporal. Caso for True, é sugerido que se configure e teste os valores das variáveis quantile_value, lookback_value e fill_value_metric.
         :param quantile_value: Float que indica o valor limite do quantil para identificar o pico.
+        :param lookback_value: Inteiro que indica a quantidade de picos que serão considerados para calcular o valor médio do pico futuro.
         :param fill_value_metric: Métrica que será usada para preencher os valores de picos faltantes. Pode ser 'mean' ou 'median'.
+        :param use_correction_based_on_history: Booleano que indica se o modelo deve corrigir a previsão comparando a mesma com valores históricos e recalculando o valor previsto com base na diferença média entre eles.
+        :param correction_window_days: Inteiro que representa a quantidade de dias que serão usados para fazer a correção da previsão.
         """
         self.future_periods = future_periods
         self.holidays_prophet = holidays_prophet
