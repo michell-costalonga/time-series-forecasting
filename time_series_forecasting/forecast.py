@@ -243,13 +243,16 @@ class TimeSeriesForecasting:
 
             # Calculando a diferença média para cada dia-hora
             forecast_correction_agg = forecast_correction.groupby("day_hour")["relative_difference"].mean().reset_index()
-            conditions_for_correction = (forecast_correction_agg["relative_difference"]>0) | (forecast_correction_agg["relative_difference"]<-0.25)
-            day_hours_to_correct = forecast_correction_agg.loc[conditions_for_correction, "day_hour"].tolist()
+            forecast_correction_agg["relative_difference"] = np.where(
+                forecast_correction_agg["relative_difference"]<= 0,
+                0,
+                forecast_correction_agg["relative_difference"]
+            )
 
             # Corrigindo os valores no DataFrame de previsão
             forecast["day_hour"] = forecast["ds"].dt.day.astype(str) + "_" + forecast["ds"].dt.hour.astype(str)
             forecast = forecast.merge(forecast_correction_agg[["day_hour", "relative_difference"]],on="day_hour",how="left")
-            forecast["yhat_upper"] = np.where(forecast["day_hour"].isin(day_hours_to_correct),forecast["yhat_upper"] * (1 + forecast["relative_difference"]),forecast["yhat_upper"])
+            forecast["yhat_upper"] = (1 + forecast["relative_difference"]) * forecast["yhat_upper"]
 
         return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
@@ -416,13 +419,16 @@ class TimeSeriesForecasting:
 
             # Calculando a diferença média para cada dia-hora
             forecast_correction_agg = forecast_correction.groupby("day_hour")["relative_difference"].mean().reset_index()
-            conditions_for_correction = (forecast_correction_agg["relative_difference"]>0)
-            day_hours_to_correct = forecast_correction_agg.loc[conditions_for_correction, "day_hour"].tolist()
+            forecast_correction_agg["relative_difference"] = np.where(
+                forecast_correction_agg["relative_difference"]<= 0,
+                0,
+                forecast_correction_agg["relative_difference"]
+            )
 
             # Corrigindo os valores no DataFrame de previsão
             df_complete["day_hour"] = df_complete["ds"].dt.day.astype(str) + "_" + df_complete["ds"].dt.hour.astype(str)
             df_complete = df_complete.merge(forecast_correction_agg[["day_hour", "relative_difference"]],on="day_hour",how="left")
-            df_complete["yhat_upper"] = np.where(df_complete["day_hour"].isin(day_hours_to_correct),df_complete["yhat_upper"] * (1 + df_complete["relative_difference"]),df_complete["yhat_upper"])
+            df_complete["yhat_upper"] = (1 + df_complete["relative_difference"]) * df_complete["yhat_upper"]
 
         return df_complete[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
